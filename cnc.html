@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>토요특강 출결관리</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+  <style>
+    body { font-family: sans-serif; margin: 30px; }
+    #calendar { max-width: 900px; margin: 0 auto; }
+    .popup {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border: 1px solid #ccc;
+      padding: 25px 35px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.25);
+      min-width: 300px;
+      z-index: 1000;
+    }
+    .popup.show { display: block; }
+    label { display: block; margin-top: 10px; }
+    button { margin-right: 10px; margin-top: 15px; }
+  </style>
+</head>
+<body>
+
+<h2>토요특강 출결 캘린더</h2>
+
+<div id="calendar"></div>
+
+<!-- 입력 팝업 -->
+<div id="popup" class="popup">
+  <h4 id="popup-date"></h4>
+
+  <label>반:
+    <select id="classSelect"></select>
+  </label>
+
+  <label>학생:
+    <select id="studentSelect"></select>
+  </label>
+
+  <label><input type="radio" name="status" value="보충"> 보충</label>
+  <label><input type="radio" name="status" value="차감"> 차감</label>
+  <label><input type="radio" name="status" value="상담전"> 상담전</label>
+
+  <button id="saveBtn">저장</button>
+  <button id="closeBtn">닫기</button>
+</div>
+
+<!-- 수정/삭제 팝업 -->
+<div id="editPopup" class="popup">
+  <h4>출결 수정 / 삭제</h4>
+  <p id="edit-info"></p>
+
+  <button id="editBtn">수정</button>
+  <button id="deleteBtn">삭제</button>
+  <button id="editCloseBtn">닫기</button>
+</div>
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLa7TGGm4s-KlnHQF8selJnGKP8npxrU10m7R2ReDQR8zLZyL7K-B49zgLYYu17jFGPQ/exec";
+
+let studentsData = [];
+let selectedDate = null;
+let selectedEvent = null;
+let selectedEventId = null;
+
+// 학생 목록 로드
+fetch(SCRIPT_URL + "?type=students")
+  .then(r => r.json())
+  .then(data => {
+    studentsData = data;
+    populateClassDropdown();
+  });
+
+function populateClassDropdown() {
+  const sel = document.getElementById("classSelect");
+  const classes = [...new Set(studentsData.map(s => s.className))];
+  sel.innerHTML = '<option value="">선택</option>';
+  classes.forEach(c => {
+    sel.innerHTML += `<option value="${c}">${c}</option>`;
+  });
+}
+
+function populateStudentDropdown(cls) {
+  const sel = document.getElementById("studentSelect");
+  const list = studentsData.filter(s => s.className === cls);
+  sel.innerHTML = '<option value="">선택</option>';
+  list.forEach(s => {
+    sel.innerHTML += `<option value="${s.name}">${s.name}</option>`;
+  });
+}
+
+document.getElementById("classSelect").onchange = e =>
+  populateStudentDropdown(e.target.value);
+
+
+// 달력 초기화
+document.addEventListener("DOMContentLoaded", function () {
+  const calendarEl = document.getElementById("calendar");
+  const popup = document.getElementById("popup");
+  const editPopup = document.getElementById("editPopup");
+
+  const calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    locale: 'ko',
+
+    dateClick(info) {
+      if (info.date.getDay() !== 6) {
+        alert("토요일만 입력 가능합니다!");
+        return;
+      }
+      selectedDate = info.dateStr;
+      document.getElementById("popup-date").textContent = selectedDate;
+      popup.classList.add("show");
+    },
+
+    eventClick(info) {
+      selectedEvent = info.event;
+      selectedEventId = info.event.id;
+
+      document.getElementById("edit-info").innerText =
+        `${info.event.startStr}\n${info.event.extendedProps.studentName}\n${info.event.extendedProps.className}\n${info.event.extendedProps.status}`;
+
+      editPopup.classList.add("show");
+    }
+  });
+
+  calendar.render();
+
+  // 기존 기록 로드
+  fetch(SCRIPT_URL + "?type=logs")
+    .then(r => r.json())
+    .then(logs => {
+      logs.forEach(log => {
+        calendar.addEvent({
+          id: log.id,
+          title: `${log.studentName} (${log.status})`,
+          start: log.date,
+          extendedProps: {
+            studentName: log.studentName,
+            className: log.className,
+            status: log.status
+          }
+        });
+      });
+    });
+
+  // 저장
+  document.getElementById("saveBtn").onclick = () => {
+    const className = document.getElementById("classSelect").value;
+    const studentName = document.getElementById("studentSelect").value;
+    const status = document.querySelector('input[name="status"]:checked')?.value;
+
+    if (!className || !studentName || !status) {
+      alert("모든 항목을 선택해주세요!");
+      return;
+    }
+
+    const data = {
+      className,
+      studentName,
+      date: selectedDate,
+      status
+    };
+
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(data)
+    })
+      .then(r=>r.text())
+      .then(res=>{
+        calendar.addEvent({
+          title: `${studentName} (${status})`,
+          start: selectedDate,
+          extendedProps: { studentName, className, status }
+        });
+        popup.classList.remove("show");
+        alert("저장되었습니다!");
+      });
+  };
+
+  // 입력팝업 닫기
+  document.getElementById("closeBtn").onclick =
+    () => popup.classList.remove("show");
+
+  // 삭제
+  document.getElementById("deleteBtn").onclick = () => {
+    fetch(SCRIPT_URL + "?action=delete", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ id: selectedEventId })
+    })
+      .then(r=>r.text())
+      .then(res=>{
+        selectedEvent.remove();
+        editPopup.classList.remove("show");
+        alert("삭제되었습니다!");
+      });
+  };
+
+  // 수정
+  document.getElementById("editBtn").onclick = () => {
+    const ep = selectedEvent.extendedProps;
+
+    // 입력창에 기존 값 채우기
+    document.getElementById("classSelect").value = ep.className;
+    populateStudentDropdown(ep.className);
+
+    setTimeout(() => {
+      document.getElementById("studentSelect").value = ep.studentName;
+    }, 20);
+
+    document.querySelector(`input[name="status"][value="${ep.status}"]`).checked = true;
+
+    selectedDate = selectedEvent.startStr;
+
+    popup.classList.add("show");
+    editPopup.classList.remove("show");
+
+    // 저장을 “수정 모드”로 바꾸기
+    document.getElementById("saveBtn").onclick = () => {
+      const className = document.getElementById("classSelect").value;
+      const studentName = document.getElementById("studentSelect").value;
+      const status = document.querySelector('input[name="status"]:checked')?.value;
+
+      if (!className || !studentName || !status) {
+        alert("모든 항목을 선택해주세요!");
+        return;
+      }
+
+      fetch(SCRIPT_URL + "?action=update", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          id: selectedEventId,
+          studentName,
+          className,
+          date: selectedDate,
+          status
+        })
+      })
+        .then(r=>r.text())
+        .then(res=>{
+          selectedEvent.remove();
+          calendar.addEvent({
+            id: selectedEventId,
+            title: `${studentName} (${status})`,
+            start: selectedDate,
+            extendedProps: { studentName, className, status }
+          });
+
+          popup.classList.remove("show");
+          alert("수정되었습니다!");
+        });
+    };
+  };
+
+  document.getElementById("editCloseBtn").onclick =
+    () => editPopup.classList.remove("show");
+
+});
+</script>
+
+</body>
+</html>
