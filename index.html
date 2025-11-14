@@ -111,6 +111,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const calendar = new FullCalendar.Calendar(calendarEl, {
     initialView: 'dayGridMonth',
     locale: 'ko',
+    displayEventTime: false,
 
     dateClick(info) {
       if (info.date.getDay() !== 6) {
@@ -272,5 +273,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 </html>
+
 
 
