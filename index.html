@@ -64,16 +64,19 @@
   <button id="editCloseBtn">닫기</button>
 </div>
 
+                
 <script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx3rAmKX86vqiOFiM4LB_wtIPaI-ViWNbkqf3OcNy0w7OALTtnb0sd0kNla_ajS7OWnbQ/exec";
-                
-                   
+
 let studentsData = [];
 let selectedDate = null;
 let selectedEvent = null;
 let selectedEventId = null;
 
+
+// ------------------------------
 // 학생 목록 로드
+// ------------------------------
 fetch(SCRIPT_URL + "?type=students")
   .then(r => r.json())
   .then(data => {
@@ -103,7 +106,9 @@ document.getElementById("classSelect").onchange = e =>
   populateStudentDropdown(e.target.value);
 
 
+// ------------------------------
 // 달력 초기화
+// ------------------------------
 document.addEventListener("DOMContentLoaded", function () {
   const calendarEl = document.getElementById("calendar");
   const popup = document.getElementById("popup");
@@ -137,7 +142,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   calendar.render();
 
-  // 기존 기록 로드
+
+  // ------------------------------
+  // 기존 출결 기록 로드
+  // ------------------------------
   fetch(SCRIPT_URL + "?type=logs")
     .then(r => r.json())
     .then(logs => {
@@ -155,7 +163,10 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     });
 
-  // 저장
+
+  // ------------------------------
+  // 저장(Create)
+  // ------------------------------
   document.getElementById("saveBtn").onclick = () => {
     const className = document.getElementById("classSelect").value;
     const studentName = document.getElementById("studentSelect").value;
@@ -173,47 +184,55 @@ document.addEventListener("DOMContentLoaded", function () {
       status
     };
 
-    fetch(SCRIPT_URL, {
+    fetch(SCRIPT_URL + "?action=create", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(data)
     })
-      .then(r=>r.text())
-      .then(res=>{
+      .then(r => r.text())
+      .then(res => {
         calendar.addEvent({
           title: `${studentName} (${status})`,
           start: selectedDate,
           extendedProps: { studentName, className, status }
         });
+
         popup.classList.remove("show");
         alert("저장되었습니다!");
       });
   };
 
-  // 입력팝업 닫기
+
+  // 입력 팝업 닫기
   document.getElementById("closeBtn").onclick =
     () => popup.classList.remove("show");
 
-  // 삭제
+
+  // ------------------------------
+  // 삭제(Delete)
+  // ------------------------------
   document.getElementById("deleteBtn").onclick = () => {
     fetch(SCRIPT_URL + "?action=delete", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ id: selectedEventId })
     })
-      .then(r=>r.text())
-      .then(res=>{
+      .then(r => r.text())
+      .then(res => {
         selectedEvent.remove();
         editPopup.classList.remove("show");
         alert("삭제되었습니다!");
       });
   };
 
-  // 수정
+
+  // ------------------------------
+  // 수정(Update)
+  // ------------------------------
   document.getElementById("editBtn").onclick = () => {
     const ep = selectedEvent.extendedProps;
 
-    // 입력창에 기존 값 채우기
+    // 기존값 채우기
     document.getElementById("classSelect").value = ep.className;
     populateStudentDropdown(ep.className);
 
@@ -228,7 +247,7 @@ document.addEventListener("DOMContentLoaded", function () {
     popup.classList.add("show");
     editPopup.classList.remove("show");
 
-    // 저장을 “수정 모드”로 바꾸기
+    // 저장 버튼을 수정모드로 변경
     document.getElementById("saveBtn").onclick = () => {
       const className = document.getElementById("classSelect").value;
       const studentName = document.getElementById("studentSelect").value;
@@ -250,9 +269,10 @@ document.addEventListener("DOMContentLoaded", function () {
           status
         })
       })
-        .then(r=>r.text())
-        .then(res=>{
+        .then(r => r.text())
+        .then(res => {
           selectedEvent.remove();
+
           calendar.addEvent({
             id: selectedEventId,
             title: `${studentName} (${status})`,
@@ -272,8 +292,10 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 </script>
 
+
 </body>
 </html>
+
 
 
 
